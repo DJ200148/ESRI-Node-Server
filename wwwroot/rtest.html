@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Esri Geometry Merge</title>
+        <script src="https://js.arcgis.com/4.20/"></script>
+    </head>
+    <body>
+        <h1>Geometry Merge</h1>
+        <button onclick="MergeEsriRings()">Merge Geometries</button>
+
+        <script>
+            const esirModules = {};
+            let doneLoading = false;
+
+            window.onload = async function () {
+                require(["esri/geometry/Polygon", "esri/geometry/geometryEngine"], function (Polygon, GeometryEngine) {
+                    esirModules.GeometryEngine = GeometryEngine;
+                    esirModules.Polygon = Polygon;
+                    console.log("esirModules loaded");
+                    doneLoading = true;
+                });
+            };
+
+            function MergeEsriGeometries(listOfEsriGeos, GeometryEngine) {
+                // Returns an esri Geometry {ring, spatial}
+                let geometryEngine = GeometryEngine;
+
+                let returnGeometry;
+                if (listOfEsriGeos.length > 1) {
+                    // Get the first geometry
+                    let prevGeometry = listOfEsriGeos[0];
+                    
+                    // Loop through the rest of the geometries
+                    for (let i = 1; i <= listOfEsriGeos.length - 1; i++) {
+                        const curGeometry = listOfEsriGeos[i];
+                        // Find where they intersect
+                        const intersectGeometry = geometryEngine.intersect(curGeometry, prevGeometry);
+                        // Find where they dont instersect
+                        const nonintersectGeometry = geometryEngine.union(curGeometry, prevGeometry);
+                        if (intersectGeometry) {
+                            // They do intersect
+                            prevGeometry = geometryEngine.union(intersectGeometry, nonintersectGeometry);
+                        } else {
+                            // They dont intersect
+                            prevGeometry = nonintersectGeometry;
+                        }
+                    }
+
+                    returnGeometry = prevGeometry;
+                } else {
+                    returnGeometry = listOfEsriGeos[0];
+                }
+
+                return returnGeometry;
+            }
+
+            async function MergeEsriRings(listOfEsriRings) {
+                // Check for invalid args
+                if (!listOfEsriRings) {
+                    return null;
+                }
+                // Convert each to esriGeos
+                let listOfEsriGeos = [];
+                listOfEsriRings.forEach((ring) => {
+                    listOfEsriGeos.push(RingsToEsriGeometry(ring, esirModules.Polygon));
+                });
+
+                // Merge geos
+                const test = MergeEsriGeometries(listOfEsriGeos, esirModules.GeometryEngine);
+                return test.rings;
+            }
+            function RingsToEsriGeometry(ring, Polygon) {
+                // function takes in string rings and array
+                let rings;
+                try {
+                    rings = JSON.parse(ring);
+                } catch {
+                    rings = ring;
+                }
+
+                // Convert esriGeos
+                let geo = new Polygon({ rings: rings, spatialReference: { wkid: 3785 } });
+                return geo;
+            }
+            window.MergeEsriRings = MergeEsriRings;
+        </script>
+    </body>
+</html>
